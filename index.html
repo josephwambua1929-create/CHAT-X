@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VIEWPAY | Advertiser Portal</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--green:#075b3b;--dark:#063d2a;--mint:#e8f5ee;--bg:#f4f7f5;--text:#17231d;--muted:#68766e;--line:#dce6df;--white:#fff;--red:#b42318}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font:15px/1.5 Inter,system-ui,Arial;color:var(--text)}
+header{background:var(--dark);color:white;padding:16px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;position:sticky;top:0;z-index:3}
+.brand{font-size:23px;font-weight:900;letter-spacing:1.5px}.brand small{display:block;font-size:10px;letter-spacing:2px;color:#b9e7ca}
+button,.btn{background:var(--green);color:white;border:0;border-radius:9px;padding:11px 15px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}
+button.secondary,.btn.secondary{background:#e6eee9;color:var(--dark)}button.danger{background:#a93226}
+button:disabled{opacity:.5;cursor:not-allowed}input,select,textarea{width:100%;padding:11px;border:1px solid var(--line);border-radius:8px;background:white;font:inherit;margin:5px 0 12px}
+label{font-weight:650;font-size:13px}main{max-width:1150px;margin:25px auto;padding:0 16px}
+.panel{background:white;border:1px solid var(--line);border-radius:14px;padding:19px;margin-bottom:16px;box-shadow:0 2px 8px #143a2010}
+.auth{max-width:480px;margin:45px auto}.hidden{display:none!important}.muted{color:var(--muted)}.notice{padding:12px;border-radius:9px;background:var(--mint);color:var(--dark);margin:10px 0}.error{background:#fff0ef;color:var(--red)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}.stat{background:#f7faf8;border:1px solid var(--line);border-radius:11px;padding:15px}.stat b{font-size:23px;display:block;color:var(--dark)}
+.tabs{display:flex;gap:8px;overflow:auto;margin:15px 0}.tabs button{white-space:nowrap}.tabs button.active{background:#063d2a}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted)}
+.chatbox{height:280px;overflow:auto;background:#f7faf8;border:1px solid var(--line);padding:12px;border-radius:10px;margin:10px 0}.msg{padding:9px 12px;border-radius:10px;background:#e5f4e9;margin:8px 0;max-width:85%}.msg.admin{background:#e9edf2;margin-left:auto}
+img.preview{max-width:180px;border-radius:8px;display:block;margin:8px 0}
+footer{text-align:center;color:var(--muted);padding:25px;font-size:12px}
+@media(max-width:750px){.grid{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}header{padding:13px 4%}}
+</style></head>
+<body>
+<header><div class="brand">VIEWPAY<small>POST. GET VIEWS. EARN MONEY.</small></div><div><span id="who" class="muted" style="color:#d7eee0;margin-right:8px"></span><button id="logout" class="secondary hidden">Log out</button></div></header>
+<main>
+<section id="setup" class="panel hidden"><h2>Connect your Supabase project</h2><p>Enter your project URL and anon/public key. These are safe for browser use when Row Level Security is enabled.</p><label>Supabase project URL</label><input id="sburl" placeholder="https://xxxx.supabase.co"><label>Supabase anon/public key</label><input id="sbkey" placeholder="eyJ..."><button onclick="saveConfig()">Connect</button><p class="muted">Do not put your Supabase service-role key in this website.</p></section>
+<section id="auth" class="auth panel hidden">
+<h2 id="authTitle">Welcome to VIEWPAY</h2><p class="muted">Sign in or create your advertiser account.</p>
+<div id="signupFields" class="hidden"><label>Full name</label><input id="fullName" autocomplete="name"><label>Phone number</label><input id="phone" placeholder="07..."></div>
+<label>Email address</label><input id="email" type="email" autocomplete="email"><label>Password</label><input id="password" type="password" autocomplete="current-password">
+<div id="authMsg"></div><button id="authSubmit" onclick="authenticate()">Sign in</button> <button class="secondary" onclick="toggleAuth()" id="switchAuth">Create account</button>
+<p class="muted">By registering, you agree to the published VIEWPAY terms and privacy notice.</p></section>
+<section id="app" class="hidden">
+<div class="panel"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h2 style="margin:0">Advertiser dashboard</h2><span id="accountState" class="muted">Loading account...</span></div><div><b id="accountId"></b></div></div></div>
+<div class="grid">
+<div class="stat"><span class="muted">Available balance</span><b id="available">KSh 0.00</b></div>
+<div class="stat"><span class="muted">Pending earnings</span><b id="pending">KSh 0.00</b></div>
+<div class="stat"><span class="muted">Total paid</span><b id="paid">KSh 0.00</b></div>
+<div class="stat"><span class="muted">Verified views</span><b id="views">0</b></div></div>
+<div class="tabs" id="tabs">
+<button class="active" data-tab="submit">Submit views</button><button data-tab="withdraw">Withdraw</button><button data-tab="history">History</button><button data-tab="activate">Activate account</button><button data-tab="chat">Contact admin</button><button data-tab="profile">Profile</button>
+</div>
+<section id="tab-submit" class="panel tab"><h3>Submit WhatsApp Status views</h3><p class="muted">Upload a clear screenshot showing the status view count. Claims are credited only after administrator verification.</p>
+<label>Number of views shown</label><input id="claimedViews" type="number" min="20" max="10000" placeholder="20 to 10,000">
+<label>Upload screenshot</label><input id="viewImage" type="file" accept="image/*">
+<label>Optional notes</label><textarea id="viewNotes" rows="2" placeholder="Campaign or advertisement details"></textarea><button onclick="submitViews()">Submit for verification</button><div id="submitMsg"></div></section>
+<section id="tab-withdraw" class="panel tab hidden"><h3>Request withdrawal</h3><p class="muted">No minimum withdrawal threshold. Requests are processed after account and balance checks.</p>
+<label>Amount (KSh)</label><input id="withdrawAmount" type="number" min="1" step="1"><label>M-Pesa phone number</label><input id="withdrawPhone" placeholder="07XXXXXXXX"><button onclick="requestWithdrawal()">Submit withdrawal request</button><div id="withdrawMsg"></div></section>
+<section id="tab-history" class="panel tab hidden"><h3>Advertising submissions</h3><div id="submissionHistory">Loading...</div><h3>Withdrawal requests</h3><div id="withdrawHistory">Loading...</div></section>
+<section id="tab-activate" class="panel tab hidden"><h3>Activate your account</h3><p>After paying the KSh. 200 registration fee through the official VIEWPAY payment instructions, enter the single-use code supplied by an administrator.</p><label>Activation code</label><input id="depositCode" autocomplete="off"><button onclick="redeemCode()">Verify code and activate</button><div id="activateMsg"></div><p class="muted">Never pay an individual or share your M-Pesa PIN/OTP. Keep your payment confirmation. Fee refund terms must be provided in writing before payment.</p></section>
+<section id="tab-chat" class="panel tab"><h3>Chat with VIEWPAY support</h3><div id="chatBox" class="chatbox"></div><textarea id="chatText" rows="2" placeholder="Write a message..."></textarea><button onclick="sendMessage()">Send message</button></section>
+<section id="tab-profile" class="panel tab hidden"><h3>Your profile</h3><label>Full name</label><input id="profileName"><label>Phone</label><input id="profilePhone"><button onclick="saveProfile()">Save profile</button><div id="profileMsg"></div></section>
+<section id="admin" class="panel hidden"><h2>Administrator tools</h2><p class="muted">Visible only to accounts assigned the admin role in Supabase.</p>
+<div class="two"><div><h3>Generate activation code</h3><label>Code expiry (days)</label><input id="codeDays" type="number" value="7"><button onclick="generateCode()">Generate code</button><div id="newCode"></div></div><div><h3>Review submitted views</h3><button class="secondary" onclick="loadAdmin()">Refresh queue</button><div id="adminQueue"></div></div></div>
+<h3>Withdrawal requests</h3><div id="adminWithdrawals"></div>
+<h3>Support inbox</h3><div id="adminInbox"></div>
+</section>
+</section>
+</main><footer>VIEWPAY advertiser portal · Payments and earnings are subject to verification and published terms.</footer>
+<script>
+let sb=null,user=null,profile=null,isSignup=false,currentTab='submit',chatChannel=null;
+const $=id=>document.getElementById(id), money=n=>'KSh '+Number(n||0).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2});
+function config(){return {url:localStorage.getItem('vp_url'),key:localStorage.getItem('vp_key')}}
+function saveConfig(){localStorage.setItem('vp_url',$('sburl').value.trim());localStorage.setItem('vp_key',$('sbkey').value.trim());location.reload()}
+async function init(){
+ let c=config(); if(!c.url||!c.key){$('setup').classList.remove('hidden');$('sburl').value=c.url||'';$('sbkey').value=c.key||'';return}
+ sb=window.supabase.createClient(c.url,c.key);
+ const {data:{session}}=await sb.auth.getSession(); if(session){user=session.user;await showApp()}else{$('auth').classList.remove('hidden')}
+ sb.auth.onAuthStateChange(async(_e,s)=>{if(s&&!user){user=s.user;await showApp()}else if(!s){user=null;$('app').classList.add('hidden');$('auth').classList.remove('hidden');$('logout').classList.add('hidden')}});
+}
+function toggleAuth(){isSignup=!isSignup;$('signupFields').classList.toggle('hidden',!isSignup);$('authTitle').textContent=isSignup?'Create your VIEWPAY account':'Welcome to VIEWPAY';$('authSubmit').textContent=isSignup?'Create account':'Sign in';$('switchAuth').textContent=isSignup?'I already have an account':'Create account';$('authMsg').textContent=''}
+async function authenticate(){
+ let email=$('email').value.trim(),password=$('password').value;
+ $('authMsg').textContent='Please wait...';
+ let result;
+ if(isSignup) result=await sb.auth.signUp({email,password,options:{data:{full_name:$('fullName').value.trim(),phone:$('phone').value.trim()}}});
+ else result=await sb.auth.signInWithPassword({email,password});
+ if(result.error){$('authMsg').innerHTML='<div class="notice error">'+esc(result.error.message)+'</div>';return}
+ if(isSignup&&!result.data.session){$('authMsg').textContent='Check your email to confirm your account, then sign in.';return}
+ user=result.data.user;await showApp();
+}
+async function showApp(){
+ $('auth').classList.add('hidden');$('setup').classList.add('hidden');$('app').classList.remove('hidden');$('logout').classList.remove('hidden');
+ $('who').textContent=user.email||''; 
+ let {data,error}=await sb.from('profiles').select('*').eq('id',user.id).single();
+ if(error){alert('Profile not found. Run the supplied Supabase SQL setup first. '+error.message);return}
+ profile=data; $('accountId').textContent='ID: '+profile.account_code;
+ $('accountState').textContent='Account status: '+profile.account_status.toUpperCase();
+ $('profileName').value=profile.full_name||'';$('profilePhone').value=profile.phone||'';
+ await refreshDashboard(); setupTabs();loadChat();if(profile.role==='admin'){$('admin').classList.remove('hidden');loadAdmin()}
+}
+async function refreshDashboard(){
+ let {data:p}=await sb.from('profiles').select('*').eq('id',user.id).single();if(p)profile=p;
+ $('accountState').textContent='Account status: '+profile.account_status.toUpperCase();
+ $('available').textContent=money(profile.available_balance);$('pending').textContent=money(profile.pending_balance);$('paid').textContent=money(profile.total_paid);$('views').textContent=Number(profile.total_verified_views||0).toLocaleString();
+}
+function setupTabs(){document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.tab').forEach(x=>x.classList.add('hidden'));$('tab-'+b.dataset.tab).classList.remove('hidden');currentTab=b.dataset.tab;if(currentTab==='history')loadHistory();if(currentTab==='chat')loadChat()})}
+async function submitViews(){
+ let count=Number($('claimedViews').value),file=$('viewImage').files[0];
+ if(profile.account_status!=='active'){return msg('submitMsg','Activate your account before submitting views.',true)}
+ if(!Number.isInteger(count)||count<20||count>10000||!file)return msg('submitMsg','Enter 20–10,000 views and attach a screenshot.',true);
+ if(!file.type.startsWith('image/'))return msg('submitMsg','Please upload an image file.',true);
+ let path=user.id+'/'+crypto.randomUUID()+'-'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+ let up=await sb.storage.from('view-evidence').upload(path,file,{contentType:file.type,upsert:false});
+ if(up.error)return msg('submitMsg',up.error.message,true);
+ let ins=await sb.from('view_submissions').insert({user_id:user.id,claimed_views:count,evidence_path:path,notes:$('viewNotes').value.trim()});
+ if(ins.error)return msg('submitMsg',ins.error.message,true);
+ $('claimedViews').value='';$('viewImage').value='';$('viewNotes').value='';msg('submitMsg','Submitted. Your views are pending administrator verification.');
+}
+async function requestWithdrawal(){
+ let amount=Number($('withdrawAmount').value),phone=$('withdrawPhone').value.trim();
+ if(profile.account_status!=='active')return msg('withdrawMsg','Your account must be active.',true);
+ if(!Number.isFinite(amount)||amount<=0||!/^(\+254|0)7\d{8}$/.test(phone))return msg('withdrawMsg','Enter a valid amount and Kenyan mobile number.',true);
+ let {error}=await sb.from('withdrawal_requests').insert({user_id:user.id,amount,phone});
+ if(error)return msg('withdrawMsg',error.message,true);
+ $('withdrawAmount').value='';msg('withdrawMsg','Withdrawal request submitted for review.');
+}
+async function redeemCode(){
+ let code=$('depositCode').value.trim();if(!code)return msg('activateMsg','Enter your activation code.',true);
+ let {data,error}=await sb.rpc('redeem_activation_code',{p_code:code});
+ if(error)return msg('activateMsg',error.message,true);
+ msg('activateMsg','Account activation confirmed.');await refreshDashboard();
+}
+async function saveProfile(){let {error}=await sb.from('profiles').update({full_name:$('profileName').value.trim(),phone:$('profilePhone').value.trim()}).eq('id',user.id);msg('profileMsg',error?error.message:'Profile updated.',!!error);await refreshDashboard()}
+async function loadHistory(){
+ let a=await sb.from('view_submissions').select('id,claimed_views,verified_views,status,created_at,admin_note').order('created_at',{ascending:false});
+ $('submissionHistory').innerHTML=table(a.data||[],['claimed_views','verified_views','status','created_at','admin_note']);
+ let w=await sb.from('withdrawal_requests').select('amount,phone,status,created_at,admin_note').order('created_at',{ascending:false});
+ $('withdrawHistory').innerHTML=table(w.data||[],['amount','phone','status','created_at','admin_note']);
+}
+async function loadChat(){
+ let {data,error}=await sb.from('support_messages').select('*').order('created_at');
+ if(error){$('chatBox').textContent=error.message;return}
+ $('chatBox').innerHTML=(data||[]).map(m=>'<div class="msg '+(m.sender_id===user.id?'':'admin')+'"><b>'+(m.sender_id===user.id?'You':(m.sender_role==='admin'?'VIEWPAY Admin':'Support'))+'</b><br>'+esc(m.message)+'<br><small>'+new Date(m.created_at).toLocaleString()+'</small></div>').join('');
+ $('chatBox').scrollTop=$('chatBox').scrollHeight;
+}
+async function sendMessage(){let message=$('chatText').value.trim();if(!message)return;let {error}=await sb.from('support_messages').insert({user_id:user.id,sender_id:user.id,sender_role:profile.role==='admin'?'admin':'advertiser',message});if(error)return alert(error.message);$('chatText').value='';await loadChat()}
+async function generateCode(){let days=Math.max(1,Math.min(30,Number($('codeDays').value)||7));let {data,error}=await sb.rpc('admin_generate_activation_code',{p_valid_days:days});if(error)return $('newCode').textContent=error.message;$('newCode').innerHTML='<div class="notice">New code (copy now): <b>'+esc(data)+'</b><br>Share only after confirming payment. This code is shown once.</div>'}
+async function loadAdmin(){
+ let s=await sb.from('view_submissions').select('id,user_id,claimed_views,evidence_path,created_at').eq('status','pending').order('created_at');
+ $('adminQueue').innerHTML=(s.data||[]).map(x=>'<div class="panel"><b>'+x.claimed_views+' claimed views</b><br><small>'+x.user_id+' · '+new Date(x.created_at).toLocaleString()+'</small><br><button onclick="reviewView(\''+x.id+'\',true,'+x.claimed_views+')">Approve claimed</button> <button class="secondary" onclick="reviewView(\''+x.id+'\',false,0)">Reject</button><button class="secondary" onclick="viewEvidence(\''+x.evidence_path+'\')">View evidence</button></div>').join('')||'No pending submissions.';
+ let w=await sb.from('withdrawal_requests').select('id,user_id,amount,phone,created_at').eq('status','pending').order('created_at');
+ $('adminWithdrawals').innerHTML=(w.data||[]).map(x=>'<div class="panel">'+money(x.amount)+' · '+esc(x.phone)+'<br><small>'+x.user_id+'</small><br><button onclick="reviewWithdrawal(\''+x.id+'\',true)">Mark paid</button> <button class="secondary" onclick="reviewWithdrawal(\''+x.id+'\',false)">Reject</button></div>').join('')||'No pending withdrawals.';
+ let m=await sb.from('support_messages').select('user_id,sender_id,message,created_at').order('created_at',{ascending:false}).limit(20);
+ $('adminInbox').innerHTML=(m.data||[]).map(x=>'<div class="panel"><b>'+x.user_id+'</b><p>'+esc(x.message)+'</p><button class="secondary" onclick="replyTo(\''+x.user_id+'\')">Reply</button></div>').join('');
+}
+async function viewEvidence(path){let {data,error}=await sb.storage.from('view-evidence').createSignedUrl(path,120);if(error)return alert(error.message);window.open(data.signedUrl,'_blank')}
+async function reviewView(id,approve,count){let note=prompt('Optional review note:')||'';let {error}=await sb.rpc('admin_review_submission',{p_submission_id:id,p_approve:approve,p_verified_views:count,p_note:note});if(error)alert(error.message);else{alert('Review saved.');loadAdmin();refreshDashboard()}}
+async function reviewWithdrawal(id,approve){let note=prompt(approve?'Enter payment reference (recommended):':'Reason for rejection:')||'';let {error}=await sb.rpc('admin_review_withdrawal',{p_request_id:id,p_approve:approve,p_note:note});if(error)alert(error.message);else{alert('Withdrawal updated.');loadAdmin();refreshDashboard()}}
+async function replyTo(uid){let message=prompt('Write reply to '+uid);if(!message)return;let {error}=await sb.from('support_messages').insert({user_id:uid,sender_id:user.id,sender_role:'admin',message});if(error)alert(error.message);else loadAdmin()}
+function table(rows,cols){if(!rows.length)return'<p class="muted">No records yet.</p>';return '<div style="overflow:auto"><table><thead><tr>'+cols.map(c=>'<th>'+c.replaceAll('_',' ')+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>'<td>'+esc(String(r[c]??''))+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'}
+function msg(id,t,e=false){$(id).innerHTML='<div class="notice '+(e?'error':'')+'">'+esc(t)+'</div>'}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+$('logout').onclick=async()=>{await sb.auth.signOut();user=null;location.reload()};
+init();
+</script></body></html>
